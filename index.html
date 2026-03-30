@@ -401,6 +401,11 @@
 
   <script>
     const API_BASE = 'https://api-web.nhle.com/v1';
+    const CORS_PROXIES = [
+      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      (url) => url  // direct as last resort
+    ];
+    let activeProxyIndex = -1; // -1 means try direct first
 
     function formatDate(dateStr) {
       const d = new Date(dateStr + 'T12:00:00');
@@ -603,9 +608,34 @@
     }
 
     async function fetchJSON(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      // If we already found a working proxy, use it
+      if (activeProxyIndex >= 0) {
+        const proxiedUrl = CORS_PROXIES[activeProxyIndex](url);
+        const res = await fetch(proxiedUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      }
+
+      // Try direct first, then fall back through CORS proxies
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        activeProxyIndex = -1; // direct works, keep using it
+        return data;
+      } catch (directErr) {
+        for (let i = 0; i < CORS_PROXIES.length - 1; i++) {
+          try {
+            const proxiedUrl = CORS_PROXIES[i](url);
+            const res = await fetch(proxiedUrl);
+            if (!res.ok) continue;
+            const data = await res.json();
+            activeProxyIndex = i; // remember working proxy
+            return data;
+          } catch { /* try next proxy */ }
+        }
+        throw new Error('NHL API unavailable (CORS blocked). Try opening from a local server.');
+      }
     }
 
     async function loadAll() {
