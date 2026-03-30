@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NHL Dashboard</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: #1c2128;
+      --bg-card-hover: #242b35;
+      --border: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.15);
+      --live-red: #f85149;
+      --live-glow: rgba(248, 81, 73, 0.2);
+      --final-green: #3fb950;
+      --ice-blue: #79c0ff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .header-left svg {
+      width: 28px;
+      height: 28px;
+      fill: var(--accent);
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .header-date {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .refresh-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-title .count {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Scores Grid */
+    .scores-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .game-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      transition: all 0.2s;
+    }
+
+    .game-card:hover {
+      background: var(--bg-card-hover);
+      border-color: #444c56;
+    }
+
+    .game-card.live {
+      border-color: var(--live-red);
+      box-shadow: 0 0 12px var(--live-glow);
+    }
+
+    .game-status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .status-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .status-badge.live {
+      background: var(--live-glow);
+      color: var(--live-red);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-badge.final { background: rgba(63, 185, 80, 0.15); color: var(--final-green); }
+    .status-badge.scheduled { background: var(--accent-glow); color: var(--accent); }
+    .status-badge.pregame { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .game-venue {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .team-row {
+      display: flex;
+      align-items: center;
+      padding: 0.4rem 0;
+      gap: 0.65rem;
+    }
+
+    .team-row + .team-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .team-logo {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+    }
+
+    .team-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .team-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .team-record {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .team-score {
+      font-size: 1.5rem;
+      font-weight: 700;
+      min-width: 2rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .team-row.winner .team-name,
+    .team-row.winner .team-score {
+      color: #fff;
+    }
+
+    .team-row.loser .team-name,
+    .team-row.loser .team-score {
+      color: var(--text-muted);
+    }
+
+    /* Schedule */
+    .schedule-section {
+      margin-bottom: 2rem;
+    }
+
+    .schedule-day {
+      margin-bottom: 1.25rem;
+    }
+
+    .day-header {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ice-blue);
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .day-header .game-count {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 0.75rem;
+    }
+
+    .schedule-game {
+      display: flex;
+      align-items: center;
+      padding: 0.55rem 0.75rem;
+      border-radius: 6px;
+      transition: background 0.15s;
+      gap: 0.65rem;
+    }
+
+    .schedule-game:hover {
+      background: var(--bg-card);
+    }
+
+    .schedule-time {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      min-width: 65px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .schedule-matchup {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .schedule-logo {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .schedule-teams {
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .schedule-teams .at {
+      color: var(--text-muted);
+      margin: 0 0.25rem;
+    }
+
+    .schedule-venue-name {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .schedule-broadcast {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      min-width: 50px;
+      text-align: right;
+    }
+
+    /* Loading & Empty States */
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-secondary);
+    }
+
+    .loading .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .empty-state .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .empty-state p { font-size: 0.9rem; }
+
+    .error-banner {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      color: var(--live-red);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header { padding: 1rem; }
+      main { padding: 1rem; }
+      .scores-grid { grid-template-columns: 1fr; }
+      .schedule-venue-name { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+        <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+      <div>
+        <h1>NHL Dashboard</h1>
+        <div class="header-date" id="header-date"></div>
+      </div>
+    </div>
+    <button class="refresh-btn" onclick="loadAll()" id="refresh-btn">Refresh</button>
+  </header>
+
+  <main>
+    <div id="error-container"></div>
+
+    <section id="scores-section">
+      <div class="section-title">Today's Scores <span class="count" id="scores-count">0</span></div>
+      <div id="scores-container" class="loading">
+        <div class="spinner"></div>
+        <div>Loading scores...</div>
+      </div>
+    </section>
+
+    <section class="schedule-section">
+      <div class="section-title">Upcoming Schedule <span class="count" id="schedule-count">0</span></div>
+      <div id="schedule-container" class="loading">
+        <div class="spinner"></div>
+        <div>Loading schedule...</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE = 'https://api-web.nhle.com/v1';
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatTime(utcStr) {
+      const d = new Date(utcStr);
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function getTeamName(team) {
+      if (team.name) return team.name.default || team.name;
+      if (team.placeName && team.commonName) {
+        return (team.placeName.default || team.placeName) + ' ' + (team.commonName.default || team.commonName);
+      }
+      if (team.commonName) return team.commonName.default || team.commonName;
+      return team.abbrev || 'TBD';
+    }
+
+    function getTeamLogo(team) {
+      if (team.logo) return team.logo;
+      return `https://assets.nhle.com/logos/nhl/svg/${team.abbrev}_dark.svg`;
+    }
+
+    function getGameStatusInfo(game) {
+      const state = game.gameState;
+      if (state === 'LIVE' || state === 'CRIT') {
+        const period = game.periodDescriptor;
+        const clock = game.clock;
+        let detail = '';
+        if (period) {
+          const pNum = period.number;
+          const pType = period.periodType;
+          let pLabel = pNum <= 3 ? `P${pNum}` : (pType === 'OT' ? `OT${pNum > 4 ? pNum - 3 : ''}` : `SO`);
+          if (clock && clock.timeRemaining) pLabel += ` ${clock.timeRemaining}`;
+          if (clock && clock.inIntermission) pLabel = `${pLabel} INT`;
+          detail = pLabel;
+        }
+        return { label: detail || 'LIVE', cssClass: 'live' };
+      }
+      if (state === 'FINAL' || state === 'OFF') {
+        const period = game.periodDescriptor;
+        let label = 'Final';
+        if (period && period.number > 3) {
+          label = period.periodType === 'OT' ? `Final/OT${period.number > 4 ? period.number - 3 : ''}` : 'Final/SO';
+        }
+        return { label, cssClass: 'final' };
+      }
+      if (state === 'PRE') {
+        return { label: 'Pre-Game', cssClass: 'pregame' };
+      }
+      // FUT or other
+      return { label: formatTime(game.startTimeUTC), cssClass: 'scheduled' };
+    }
+
+    function hasScore(game) {
+      const s = game.gameState;
+      return s === 'LIVE' || s === 'CRIT' || s === 'FINAL' || s === 'OFF';
+    }
+
+    function renderScores(data) {
+      const container = document.getElementById('scores-container');
+      const countEl = document.getElementById('scores-count');
+      const games = data.games || [];
+
+      countEl.textContent = games.length;
+
+      if (games.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#127954;</div>
+            <p>No games scheduled for today</p>
+          </div>`;
+        container.className = '';
+        return;
+      }
+
+      // Sort: live first, then final, then scheduled
+      const order = { LIVE: 0, CRIT: 0, PRE: 1, FUT: 2, FINAL: 3, OFF: 3 };
+      games.sort((a, b) => (order[a.gameState] ?? 2) - (order[b.gameState] ?? 2));
+
+      let html = '<div class="scores-grid">';
+      for (const game of games) {
+        const status = getGameStatusInfo(game);
+        const showScore = hasScore(game);
+        const away = game.awayTeam;
+        const home = game.homeTeam;
+
+        const awayScore = away.score ?? 0;
+        const homeScore = home.score ?? 0;
+        const isFinal = game.gameState === 'FINAL' || game.gameState === 'OFF';
+
+        let awayClass = '', homeClass = '';
+        if (isFinal) {
+          awayClass = awayScore > homeScore ? 'winner' : 'loser';
+          homeClass = homeScore > awayScore ? 'winner' : 'loser';
+          if (awayScore === homeScore) { awayClass = ''; homeClass = ''; }
+        }
+
+        const isLive = game.gameState === 'LIVE' || game.gameState === 'CRIT';
+
+        html += `
+          <div class="game-card${isLive ? ' live' : ''}">
+            <div class="game-status">
+              <span class="status-badge ${status.cssClass}">${status.label}</span>
+              <span class="game-venue">${game.venue?.default || ''}</span>
+            </div>
+            <div class="team-row ${awayClass}">
+              <img class="team-logo" src="${getTeamLogo(away)}" alt="${away.abbrev}" loading="lazy" onerror="this.style.display='none'">
+              <div class="team-info">
+                <div class="team-name">${getTeamName(away)}</div>
+                <div class="team-record">${away.record || ''}</div>
+              </div>
+              ${showScore ? `<div class="team-score">${awayScore}</div>` : ''}
+            </div>
+            <div class="team-row ${homeClass}">
+              <img class="team-logo" src="${getTeamLogo(home)}" alt="${home.abbrev}" loading="lazy" onerror="this.style.display='none'">
+              <div class="team-info">
+                <div class="team-name">${getTeamName(home)}</div>
+                <div class="team-record">${home.record || ''}</div>
+              </div>
+              ${showScore ? `<div class="team-score">${homeScore}</div>` : ''}
+            </div>
+          </div>`;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+      container.className = '';
+    }
+
+    function renderSchedule(data) {
+      const container = document.getElementById('schedule-container');
+      const countEl = document.getElementById('schedule-count');
+      const week = data.gameWeek || [];
+
+      // Filter to future days only (skip today — it's in scores)
+      const today = data.gameWeek?.[0]?.date || new Date().toISOString().slice(0, 10);
+      const futureDays = week.filter(d => d.date > today);
+
+      const totalGames = futureDays.reduce((sum, d) => sum + (d.games?.length || 0), 0);
+      countEl.textContent = totalGames;
+
+      if (futureDays.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#128197;</div>
+            <p>No upcoming games in schedule</p>
+          </div>`;
+        container.className = '';
+        return;
+      }
+
+      let html = '';
+      for (const day of futureDays) {
+        const games = day.games || [];
+        if (games.length === 0) continue;
+
+        html += `
+          <div class="schedule-day">
+            <div class="day-header">
+              ${formatDate(day.date)}
+              <span class="game-count">&mdash; ${games.length} game${games.length !== 1 ? 's' : ''}</span>
+            </div>`;
+
+        for (const game of games) {
+          const away = game.awayTeam;
+          const home = game.homeTeam;
+          const tv = game.tvBroadcasts?.filter(b => b.countryCode === 'US').map(b => b.network).join(', ') || '';
+
+          html += `
+            <div class="schedule-game">
+              <div class="schedule-time">${formatTime(game.startTimeUTC)}</div>
+              <div class="schedule-matchup">
+                <img class="schedule-logo" src="${getTeamLogo(away)}" alt="${away.abbrev}" loading="lazy" onerror="this.style.display='none'">
+                <div class="schedule-teams">
+                  <strong>${away.abbrev}</strong>
+                  <span class="at">@</span>
+                  <strong>${home.abbrev}</strong>
+                </div>
+                <img class="schedule-logo" src="${getTeamLogo(home)}" alt="${home.abbrev}" loading="lazy" onerror="this.style.display='none'">
+              </div>
+              <div class="schedule-venue-name">${game.venue?.default || ''}</div>
+              ${tv ? `<div class="schedule-broadcast">${tv}</div>` : ''}
+            </div>`;
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+      container.className = '';
+    }
+
+    function showError(msg) {
+      document.getElementById('error-container').innerHTML = `<div class="error-banner">${msg}</div>`;
+    }
+
+    function clearError() {
+      document.getElementById('error-container').innerHTML = '';
+    }
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    async function loadAll() {
+      const btn = document.getElementById('refresh-btn');
+      btn.textContent = 'Loading...';
+      btn.disabled = true;
+      clearError();
+
+      // Set header date
+      document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+      });
+
+      const results = await Promise.allSettled([
+        fetchJSON(`${API_BASE}/score/now`),
+        fetchJSON(`${API_BASE}/schedule/now`)
+      ]);
+
+      const [scoresResult, scheduleResult] = results;
+
+      if (scoresResult.status === 'fulfilled') {
+        renderScores(scoresResult.value);
+      } else {
+        document.getElementById('scores-container').innerHTML = `
+          <div class="empty-state"><p>Could not load scores. ${scoresResult.reason?.message || ''}</p></div>`;
+        document.getElementById('scores-container').className = '';
+      }
+
+      if (scheduleResult.status === 'fulfilled') {
+        renderSchedule(scheduleResult.value);
+      } else {
+        document.getElementById('schedule-container').innerHTML = `
+          <div class="empty-state"><p>Could not load schedule. ${scheduleResult.reason?.message || ''}</p></div>`;
+        document.getElementById('schedule-container').className = '';
+      }
+
+      if (scoresResult.status === 'rejected' && scheduleResult.status === 'rejected') {
+        showError('Unable to reach the NHL API. Please check your connection and try again.');
+      }
+
+      btn.textContent = 'Refresh';
+      btn.disabled = false;
+
+      // Auto-refresh every 60 seconds if any live games
+      const games = scoresResult.status === 'fulfilled' ? (scoresResult.value.games || []) : [];
+      const hasLive = games.some(g => g.gameState === 'LIVE' || g.gameState === 'CRIT');
+      clearTimeout(window._refreshTimer);
+      if (hasLive) {
+        window._refreshTimer = setTimeout(loadAll, 30000); // 30s for live games
+      } else {
+        window._refreshTimer = setTimeout(loadAll, 300000); // 5min otherwise
+      }
+    }
+
+    loadAll();
+  </script>
+</body>
+</html>
